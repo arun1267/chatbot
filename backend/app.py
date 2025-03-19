@@ -1,18 +1,27 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import os
-import traceback
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 import jwt
 import bcrypt
-from dotenv import load_dotenv
+from typing import Optional
 from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
@@ -24,6 +33,22 @@ MONGO_URI = 'mongodb+srv://sam:123@cluster0.lsn1n.mongodb.net/Arun-v1'
 client = MongoClient(MONGO_URI)
 db = client['Arun-v1']
 users_collection = db['users']
+
+# Pydantic models for request/response
+class UserSignup(BaseModel):
+    email: str
+    password: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -41,30 +66,36 @@ def verify_token(token: str):
     except jwt.JWTError:
         return None
 
-@app.route('/api/signup', methods=['POST'])
-def signup():
+async def get_current_user(token: str):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    payload = verify_token(token)
+    if payload is None:
+        raise credentials_exception
+    email: str = payload.get("sub")
+    if email is None:
+        raise credentials_exception
+    return email
+
+@app.post("/api/signup")
+async def signup(user: UserSignup):
     try:
-        print("Received signup request")
-        data = request.get_json()
-        email = data.get('email')
-        password = data.get('password')
-
-        print(f"Processing signup for email: {email}")
-
-        if not email or not password:
-            return jsonify({'error': 'Email and password are required'}), 400
+        print(f"Processing signup for email: {user.email}")
 
         # Check if email already exists
-        if users_collection.find_one({'email': email}):
-            return jsonify({'error': 'EMAIL_EXISTS'}), 400
+        if users_collection.find_one({'email': user.email}):
+            raise HTTPException(status_code=400, detail="EMAIL_EXISTS")
 
         # Hash the password
         salt = bcrypt.gensalt()
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+        hashed_password = bcrypt.hashpw(user.password.encode('utf-8'), salt)
 
         # Add new user with hashed password
         new_user = {
-            'email': email,
+            'email': user.email,
             'password': hashed_password.decode('utf-8'),
             'salt': salt.decode('utf-8'),
             'created_at': datetime.utcnow()
@@ -73,65 +104,58 @@ def signup():
         users_collection.insert_one(new_user)
         print("User successfully added to MongoDB")
 
-        return jsonify({'success': True}), 200
+        return {"success": True}
 
     except Exception as e:
         print(f"Error in signup: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/api/login', methods=['POST'])
-def login():
+@app.post("/api/login")
+async def login(user: UserLogin):
     try:
-        data = request.get_json()
-        email = data.get('email')
-        password = data.get('password')
-
-        print(f"Attempting login with email: {email}")
+        print(f"Attempting login with email: {user.email}")
 
         # Find user in MongoDB
-        user = users_collection.find_one({'email': email})
+        db_user = users_collection.find_one({'email': user.email})
         
-        if not user:
-            print(f"Email {email} not found in database")
-            return jsonify({'error': 'EMAIL_NOT_FOUND'}), 401
+        if not db_user:
+            print(f"Email {user.email} not found in database")
+            raise HTTPException(status_code=401, detail="EMAIL_NOT_FOUND")
 
         # Verify password using bcrypt
-        if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-            print(f"Login successful for {email}")
+        if bcrypt.checkpw(user.password.encode('utf-8'), db_user['password'].encode('utf-8')):
+            print(f"Login successful for {user.email}")
             # Create access token
-            access_token = create_access_token({"sub": email})
-            return jsonify({
-                'success': True,
-                'email': email,
-                'access_token': access_token
-            }), 200
+            access_token = create_access_token({"sub": user.email})
+            return {
+                "success": True,
+                "email": user.email,
+                "access_token": access_token,
+                "token_type": "bearer"
+            }
         else:
-            print(f"Invalid password for {email}")
-            return jsonify({'error': 'INVALID_PASSWORD'}), 401
+            print(f"Invalid password for {user.email}")
+            raise HTTPException(status_code=401, detail="INVALID_PASSWORD")
 
     except Exception as e:
         print(f"Server error during login: {str(e)}")
-        return jsonify({'error': 'SERVER_ERROR'}), 500
+        raise HTTPException(status_code=500, detail="SERVER_ERROR")
 
-@app.route('/api/verify-token', methods=['POST'])
-def verify_token_endpoint():
+@app.post("/api/verify-token")
+async def verify_token_endpoint(token: str):
     try:
-        data = request.get_json()
-        token = data.get('token')
-        
         if not token:
-            return jsonify({'error': 'No token provided'}), 401
+            raise HTTPException(status_code=401, detail="No token provided")
             
         payload = verify_token(token)
         if payload:
-            return jsonify({'valid': True, 'email': payload['sub']}), 200
+            return {"valid": True, "email": payload['sub']}
         else:
-            return jsonify({'error': 'Invalid or expired token'}), 401
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
-    print("Initializing server...")
-    app.run(port=5000, debug=True) 
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000) 
