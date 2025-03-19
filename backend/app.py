@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import json
 import os
 import traceback
 from datetime import datetime, timedelta
 import jwt
 import bcrypt
 from dotenv import load_dotenv
+from pymongo import MongoClient
 
 # Load environment variables
 load_dotenv()
@@ -19,8 +19,11 @@ JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM')
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRE_MINUTES'))
 
-# Path to your data.json file
-DATA_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "pages", "data.json"))
+# MongoDB Configuration
+MONGO_URI = 'mongodb+srv://sam:123@cluster0.lsn1n.mongodb.net/Arun-v1'
+client = MongoClient(MONGO_URI)
+db = client['Arun-v1']
+users_collection = db['users']
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -38,42 +41,6 @@ def verify_token(token: str):
     except jwt.JWTError:
         return None
 
-def initialize_json_file():
-    """Create data.json if it doesn't exist"""
-    try:
-        os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
-        if not os.path.exists(DATA_FILE):
-            with open(DATA_FILE, 'w') as f:
-                json.dump([], f)
-        print(f"Data file initialized at: {DATA_FILE}")
-    except Exception as e:
-        print(f"Error initializing data file: {str(e)}")
-        print(traceback.format_exc())
-
-def read_users():
-    """Read users from JSON file"""
-    try:
-        if not os.path.exists(DATA_FILE):
-            initialize_json_file()
-            return []
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Error reading users: {str(e)}")
-        print(traceback.format_exc())
-        return []
-
-def write_users(users):
-    """Write users to JSON file"""
-    try:
-        with open(DATA_FILE, 'w') as f:
-            json.dump(users, f, indent=2)
-        print(f"Successfully wrote {len(users)} users to file")
-    except Exception as e:
-        print(f"Error writing users: {str(e)}")
-        print(traceback.format_exc())
-        raise
-
 @app.route('/api/signup', methods=['POST'])
 def signup():
     try:
@@ -87,12 +54,8 @@ def signup():
         if not email or not password:
             return jsonify({'error': 'Email and password are required'}), 400
 
-        # Read existing users
-        users = read_users()
-        print(f"Current number of users: {len(users)}")
-
         # Check if email already exists
-        if any(user['email'] == email for user in users):
+        if users_collection.find_one({'email': email}):
             return jsonify({'error': 'EMAIL_EXISTS'}), 400
 
         # Hash the password
@@ -100,15 +63,15 @@ def signup():
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
 
         # Add new user with hashed password
-        users.append({
+        new_user = {
             'email': email,
             'password': hashed_password.decode('utf-8'),
-            'salt': salt.decode('utf-8')
-        })
-
-        # Save updated users
-        write_users(users)
-        print("User successfully added")
+            'salt': salt.decode('utf-8'),
+            'created_at': datetime.utcnow()
+        }
+        
+        users_collection.insert_one(new_user)
+        print("User successfully added to MongoDB")
 
         return jsonify({'success': True}), 200
 
@@ -126,37 +89,26 @@ def login():
 
         print(f"Attempting login with email: {email}")
 
-        # Read the data.json file
-        try:
-            with open(DATA_FILE, 'r') as f:
-                users = json.load(f)
-                print(f"Current users in database: {users}")
-        except FileNotFoundError:
-            print(f"Data file not found at: {DATA_FILE}")
+        # Find user in MongoDB
+        user = users_collection.find_one({'email': email})
+        
+        if not user:
+            print(f"Email {email} not found in database")
             return jsonify({'error': 'EMAIL_NOT_FOUND'}), 401
-        except json.JSONDecodeError as e:
-            print(f"Error reading JSON file: {e}")
-            return jsonify({'error': 'SERVER_ERROR'}), 500
 
-        # Check if user exists and password matches
-        for user in users:
-            if user['email'] == email:
-                # Verify password using bcrypt
-                if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-                    print(f"Login successful for {email}")
-                    # Create access token
-                    access_token = create_access_token({"sub": email})
-                    return jsonify({
-                        'success': True,
-                        'email': email,
-                        'access_token': access_token
-                    }), 200
-                else:
-                    print(f"Invalid password for {email}")
-                    return jsonify({'error': 'INVALID_PASSWORD'}), 401
-
-        print(f"Email {email} not found in database")
-        return jsonify({'error': 'EMAIL_NOT_FOUND'}), 401
+        # Verify password using bcrypt
+        if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+            print(f"Login successful for {email}")
+            # Create access token
+            access_token = create_access_token({"sub": email})
+            return jsonify({
+                'success': True,
+                'email': email,
+                'access_token': access_token
+            }), 200
+        else:
+            print(f"Invalid password for {email}")
+            return jsonify({'error': 'INVALID_PASSWORD'}), 401
 
     except Exception as e:
         print(f"Server error during login: {str(e)}")
@@ -181,6 +133,5 @@ def verify_token_endpoint():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print(f"Initializing server... Data file path: {DATA_FILE}")
-    initialize_json_file()
+    print("Initializing server...")
     app.run(port=5000, debug=True) 
