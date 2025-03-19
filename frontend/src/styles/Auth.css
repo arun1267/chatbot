@@ -1,0 +1,35 @@
+.auth-container {
+  @apply flex justify-center items-center min-h-screen w-full bg-gradient-to-br from-purple-50 to-orange-50 m-0 p-0;
+}
+
+.auth-form-container {
+  @apply bg-white p-8 rounded-lg shadow-md w-full max-w-md border border-purple-100;
+}
+
+.auth-form-container h2 {
+  @apply mb-6 text-center text-2xl font-bold text-purple-900;
+}
+
+.form-group {
+  @apply mb-4;
+}
+
+.form-group label {
+  @apply block mb-2 font-medium text-orange-700;
+}
+
+.form-group input {
+  @apply w-full p-3 border border-purple-200 rounded-md text-base focus:outline-none focus:ring-2 focus:ring-purple-500;
+}
+
+.auth-button {
+  @apply w-full p-3 bg-gradient-to-r from-purple-600 to-orange-500 text-white border-none rounded-md text-base cursor-pointer mt-4 hover:opacity-90 transition-opacity;
+}
+
+p {
+  @apply text-center mt-4;
+}
+
+a {
+  @apply text-purple-700 no-underline hover:underline;
+} 

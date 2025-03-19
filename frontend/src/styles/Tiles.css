@@ -1,0 +1,73 @@
+@tailwind components;
+
+.tile {
+  @apply bg-white dark:bg-dark-bg-secondary rounded-lg shadow-md p-4 transition-all duration-200 tile-glow;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+  
+.tile:hover {
+  @apply transform -translate-y-1 shadow-lg;
+}
+
+.tile-title {
+  @apply mt-0 mb-3 text-lg font-medium;
+  color: var(--color-text-primary);
+}
+
+.small-tile {
+  @apply col-span-5;
+  height: 105px; /* 1.25 times the previous height (84px) */
+}
+
+.tile-icon {
+  @apply text-3xl mr-3;
+  color: var(--color-gradient-secondary);
+}
+
+.tile-content {
+  @apply flex-1;
+}
+
+.tile-value {
+  @apply text-xl font-bold m-0;
+  color: var(--color-gradient-primary);
+}
+
+.medium-tile {
+  @apply col-span-2;
+  height: 210px; /* 30% smaller than 300px */
+}
+
+.large-tile {
+  @apply col-span-3;
+  height: 300px; /* 30% smaller than 400px */
+}
+
+@media (max-width: 1200px) {
+  .medium-tile, .large-tile {
+    @apply col-span-1;
+  }
+}
+
+/* Define the tile-glow class if you want to keep using it */
+@layer components {
+  .tile-glow {
+    @apply hover:shadow-lg;
+  }
+}
+
+/* Add these styles to handle expanded tiles */
+.expanded-tile {
+  @apply col-span-full;
+  height: auto;
+  transition: all 0.3s ease-in-out;
+  z-index: 10;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.expanded-tile .tile-content {
+  height: auto;
+  min-height: 600px;
+  transition: all 0.3s ease-in-out;
+} 

@@ -1,0 +1,58 @@
+/* Theme Variables */
+:root {
+  /* Light Theme */
+  --color-bg-primary: theme('colors.light.bg-primary');
+  --color-bg-secondary: theme('colors.light.bg-secondary');
+  --color-text-primary: theme('colors.light.text-primary');
+  --color-text-secondary: theme('colors.light.text-secondary');
+  --color-gradient-primary: theme('colors.light.gradient-primary');
+  --color-gradient-secondary: theme('colors.light.gradient-secondary');
+  
+  /* Sentiment colors - Light theme */
+  --color-sentiment-positive: #22c55e;
+  --color-sentiment-neutral: #64748b;
+  --color-sentiment-negative: #ef4444;
+}
+
+/* Dark Theme */
+.dark {
+  --color-bg-primary: theme('colors.dark.bg-primary');
+  --color-bg-secondary: theme('colors.dark.bg-secondary');
+  --color-text-primary: theme('colors.dark.text-primary');
+  --color-text-secondary: theme('colors.dark.text-secondary');
+  --color-gradient-primary: theme('colors.dark.gradient-primary');
+  --color-gradient-secondary: theme('colors.dark.gradient-secondary');
+  
+  /* Sentiment colors - Dark theme */
+  --color-sentiment-positive: #4ade80;
+  --color-sentiment-neutral: #94a3b8;
+  --color-sentiment-negative: #f87171;
+}
+
+/* Hover Glow Effect */
+.tile-glow {
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.tile-glow:hover {
+  transform: translateY(-2px);
+}
+
+/* Light theme glow */
+.tile-glow:hover:not(.dark *) {
+  box-shadow: 0 0 15px rgba(156, 39, 176, 0.3);
+}
+
+/* Dark theme glow */
+.dark .tile-glow:hover {
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+}
+
+/* Conversation tile specific styles */
+.conversation-tile {
+  transition: all 0.2s ease;
+}
+
+.conversation-tile:hover {
+  transform: translateY(-2px);
+} 
